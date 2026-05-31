@@ -1,0 +1,18 @@
+[project]
+name = "xreader"
+version = "0.1.0"
+description = "Minimal Twikit-based timeline exporter."
+readme = "README.md"
+requires-python = "==3.14.5"
+dependencies = [
+  "python-dotenv==1.2.2",
+  "twikit==2.3.3",
+]
+
+[project.scripts]
+xreader = "xreader.cli:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
