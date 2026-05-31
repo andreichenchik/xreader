@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from collections.abc import Iterable
 
 from xreader.models import TweetSummary
@@ -25,16 +24,50 @@ def format_jsonl(tweets: Iterable[TweetSummary]) -> str:
 
 
 def _format_human_tweet(index: int, tweet: TweetSummary) -> str:
-    author = _format_author(tweet)
-    created_at = f" · {tweet.created_at}" if tweet.created_at else ""
-    retweeted_by = _format_retweeted_by(tweet)
-    metrics = _format_metrics(tweet)
-    body = textwrap.indent(tweet.text.strip() or "(empty text)", "  ")
+    display_tweet = tweet.reposted_tweet or tweet
+    reposted_by = _format_reposted_by(tweet) if tweet.reposted_tweet else ""
+    metrics = _format_metrics(display_tweet)
 
-    lines = [f"{index}. {author}{created_at}{retweeted_by}", body, f"  {tweet.url}"]
+    lines = [f"{index}. {_format_author(display_tweet)}{_format_created_at(display_tweet)}{reposted_by}"]
+    lines.extend(_prefix_lines(_format_body_lines(display_tweet), "  "))
+    lines.append(f"  {display_tweet.url}")
     if metrics:
         lines.append(f"  {metrics}")
     return "\n".join(lines)
+
+
+def _format_body_lines(tweet: TweetSummary) -> list[str]:
+    lines = _format_text_lines(tweet)
+    if tweet.quoted_tweet is not None:
+        lines.extend(_format_quote_block(tweet.quoted_tweet))
+    lines.extend(_format_thread_blocks(tweet.thread_tweets))
+    return lines
+
+
+def _format_quote_block(tweet: TweetSummary) -> list[str]:
+    return _prefix_lines(_format_card_lines(tweet), "│ ")
+
+
+def _format_thread_blocks(tweets: tuple[TweetSummary, ...]) -> list[str]:
+    lines: list[str] = []
+    for tweet in tweets:
+        if lines:
+            lines.append("│")
+        lines.extend(_prefix_lines(_format_card_lines(tweet), "│ "))
+    return lines
+
+
+def _format_card_lines(tweet: TweetSummary) -> list[str]:
+    display_tweet = tweet.reposted_tweet or tweet
+    reposted_by = _format_reposted_by(tweet) if tweet.reposted_tweet else ""
+    metrics = _format_metrics(display_tweet)
+
+    lines = [f"{_format_author(display_tweet)}{_format_created_at(display_tweet)}{reposted_by}"]
+    lines.extend(_format_body_lines(display_tweet))
+    lines.append(display_tweet.url)
+    if metrics:
+        lines.append(metrics)
+    return lines
 
 
 def _format_author(tweet: TweetSummary) -> str:
@@ -47,14 +80,18 @@ def _format_author(tweet: TweetSummary) -> str:
     return "Unknown author"
 
 
-def _format_retweeted_by(tweet: TweetSummary) -> str:
-    if tweet.retweeted_by_screen_name and tweet.retweeted_by_name:
-        return f" · retweeted by @{tweet.retweeted_by_screen_name} ({tweet.retweeted_by_name})"
-    if tweet.retweeted_by_screen_name:
-        return f" · retweeted by @{tweet.retweeted_by_screen_name}"
-    if tweet.retweeted_by_name:
-        return f" · retweeted by {tweet.retweeted_by_name}"
-    return ""
+def _format_created_at(tweet: TweetSummary) -> str:
+    return f" · {tweet.created_at}" if tweet.created_at else ""
+
+
+def _format_reposted_by(tweet: TweetSummary) -> str:
+    if tweet.author_screen_name and tweet.author_name:
+        return f" · reposted by @{tweet.author_screen_name} ({tweet.author_name})"
+    if tweet.author_screen_name:
+        return f" · reposted by @{tweet.author_screen_name}"
+    if tweet.author_name:
+        return f" · reposted by {tweet.author_name}"
+    return " · reposted"
 
 
 def _format_metrics(tweet: TweetSummary) -> str:
@@ -65,3 +102,12 @@ def _format_metrics(tweet: TweetSummary) -> str:
         ("views", tweet.view_count),
     ]
     return " · ".join(f"{name}: {value}" for name, value in metrics if value is not None)
+
+
+def _format_text_lines(tweet: TweetSummary) -> list[str]:
+    text = tweet.text.strip()
+    return text.splitlines() if text else ["(empty text)"]
+
+
+def _prefix_lines(lines: Iterable[str], prefix: str) -> list[str]:
+    return [f"{prefix}{line}" for line in lines]
