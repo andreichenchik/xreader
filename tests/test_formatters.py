@@ -28,6 +28,23 @@ class FormatterTests(unittest.TestCase):
         self.assertIn("  Hello\n  world", text)
         self.assertIn("replies: 1 · retweets: 2 · likes: 3 · views: 4", text)
 
+    def test_formats_retweet_context(self) -> None:
+        text = format_human([
+            TweetSummary(
+                id="999",
+                author_name="Original User",
+                author_screen_name="original",
+                created_at=None,
+                text="Full original text",
+                url="https://x.com/original/status/999",
+                retweeted_by_name="Retweeter",
+                retweeted_by_screen_name="retweeter",
+            )
+        ])
+
+        self.assertIn("@original (Original User) · retweeted by @retweeter (Retweeter)", text)
+        self.assertIn("Full original text", text)
+
     def test_formats_empty_human_result(self) -> None:
         self.assertEqual(format_human([]), "No tweets returned.")
 

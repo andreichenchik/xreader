@@ -27,10 +27,11 @@ def format_jsonl(tweets: Iterable[TweetSummary]) -> str:
 def _format_human_tweet(index: int, tweet: TweetSummary) -> str:
     author = _format_author(tweet)
     created_at = f" · {tweet.created_at}" if tweet.created_at else ""
+    retweeted_by = _format_retweeted_by(tweet)
     metrics = _format_metrics(tweet)
     body = textwrap.indent(tweet.text.strip() or "(empty text)", "  ")
 
-    lines = [f"{index}. {author}{created_at}", body, f"  {tweet.url}"]
+    lines = [f"{index}. {author}{created_at}{retweeted_by}", body, f"  {tweet.url}"]
     if metrics:
         lines.append(f"  {metrics}")
     return "\n".join(lines)
@@ -44,6 +45,16 @@ def _format_author(tweet: TweetSummary) -> str:
     if tweet.author_name:
         return tweet.author_name
     return "Unknown author"
+
+
+def _format_retweeted_by(tweet: TweetSummary) -> str:
+    if tweet.retweeted_by_screen_name and tweet.retweeted_by_name:
+        return f" · retweeted by @{tweet.retweeted_by_screen_name} ({tweet.retweeted_by_name})"
+    if tweet.retweeted_by_screen_name:
+        return f" · retweeted by @{tweet.retweeted_by_screen_name}"
+    if tweet.retweeted_by_name:
+        return f" · retweeted by {tweet.retweeted_by_name}"
+    return ""
 
 
 def _format_metrics(tweet: TweetSummary) -> str:

@@ -19,6 +19,7 @@ class FakeTweet:
     retweet_count = 2
     favorite_count = 3
     view_count = "4"
+    retweeted_tweet = None
 
 
 class TweetSummaryTests(unittest.TestCase):
@@ -42,6 +43,40 @@ class TweetSummaryTests(unittest.TestCase):
 
         self.assertEqual(summary.url, "https://x.com/i/web/status/67890")
         self.assertEqual(summary.text, "No user attached")
+
+    def test_uses_original_tweet_text_for_retweets(self) -> None:
+        class Retweeter:
+            name = "Retweeter"
+            screen_name = "retweeter"
+
+        class OriginalUser:
+            name = "Original User"
+            screen_name = "original"
+
+        class OriginalTweet:
+            id = "999"
+            user = OriginalUser()
+            created_at = "Tue Jan 02 00:00:00 +0000 2024"
+            full_text = "Full original tweet text without truncation"
+            reply_count = 4
+            retweet_count = 5
+            favorite_count = 6
+            view_count = 7
+
+        class Retweet:
+            id = "123"
+            user = Retweeter()
+            full_text = "RT @original: Full original tweet text…"
+            retweeted_tweet = OriginalTweet()
+
+        summary = TweetSummary.from_twikit(Retweet())
+
+        self.assertEqual(summary.id, "999")
+        self.assertEqual(summary.author_screen_name, "original")
+        self.assertEqual(summary.text, "Full original tweet text without truncation")
+        self.assertEqual(summary.url, "https://x.com/original/status/999")
+        self.assertEqual(summary.retweeted_by_screen_name, "retweeter")
+        self.assertEqual(summary.retweeted_by_name, "Retweeter")
 
 
 if __name__ == "__main__":
