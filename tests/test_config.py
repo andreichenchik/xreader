@@ -18,6 +18,9 @@ class LoadConfigTests(unittest.TestCase):
             "TWIKIT_TOTP_SECRET": "totp",
             "TWIKIT_COOKIES_FILE": ".cache/custom.json",
             "TWIKIT_LANGUAGE": "ru-RU",
+            "TWIKIT_IMPERSONATE": "chrome124",
+            "TWIKIT_ENABLE_UI_METRICS": "false",
+            "TWIKIT_COOKIE_ONLY": "true",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -28,7 +31,35 @@ class LoadConfigTests(unittest.TestCase):
         self.assertEqual(config.password, "secret")
         self.assertEqual(config.totp_secret, "totp")
         self.assertEqual(config.cookies_file, Path(".cache/custom.json"))
+        self.assertEqual(config.impersonate, "chrome124")
+        self.assertTrue(config.cookie_only)
+        self.assertFalse(config.enable_ui_metrics)
         self.assertEqual(config.language, "ru-RU")
+
+    def test_defaults_ui_metrics_to_enabled(self) -> None:
+        env = {
+            "TWIKIT_USERNAME": "andrei",
+            "TWIKIT_PASSWORD": "secret",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            config = load_config(env_file=None)
+
+        self.assertTrue(config.enable_ui_metrics)
+
+    def test_cookie_only_does_not_require_credentials(self) -> None:
+        env = {
+            "TWIKIT_COOKIE_ONLY": "true",
+            "TWIKIT_COOKIES_FILE": "cookies.json",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            config = load_config(env_file=None)
+
+        self.assertIsNone(config.username)
+        self.assertIsNone(config.password)
+        self.assertTrue(config.cookie_only)
+        self.assertEqual(config.cookies_file, Path("cookies.json"))
 
     def test_cli_overrides_cookie_file_and_language(self) -> None:
         env = {

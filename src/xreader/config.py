@@ -11,11 +11,14 @@ from dotenv import load_dotenv
 class TwikitConfig:
     """Credentials and local Twikit settings loaded from the environment."""
 
-    username: str
+    username: str | None
     email: str | None
-    password: str
+    password: str | None
     totp_secret: str | None
     cookies_file: Path
+    impersonate: str | None
+    cookie_only: bool = False
+    enable_ui_metrics: bool = True
     language: str = "en-US"
 
 
@@ -29,9 +32,10 @@ def load_config(env_file: Path | None = Path(".env"), cookies_file: Path | None 
     if env_file is not None and env_file.exists():
         load_dotenv(env_file)
 
-    username = _required_env("TWIKIT_USERNAME")
-    password = _required_env("TWIKIT_PASSWORD")
     configured_cookies_file = cookies_file or Path(os.getenv("TWIKIT_COOKIES_FILE", ".cache/twikit/cookies.json"))
+    cookie_only = _bool_env("TWIKIT_COOKIE_ONLY", default=False)
+    username = _optional_env("TWIKIT_USERNAME") if cookie_only else _required_env("TWIKIT_USERNAME")
+    password = _optional_env("TWIKIT_PASSWORD") if cookie_only else _required_env("TWIKIT_PASSWORD")
 
     return TwikitConfig(
         username=username,
@@ -39,6 +43,9 @@ def load_config(env_file: Path | None = Path(".env"), cookies_file: Path | None 
         password=password,
         totp_secret=_optional_env("TWIKIT_TOTP_SECRET"),
         cookies_file=configured_cookies_file,
+        impersonate=_optional_env("TWIKIT_IMPERSONATE"),
+        cookie_only=cookie_only,
+        enable_ui_metrics=_bool_env("TWIKIT_ENABLE_UI_METRICS", default=True),
         language=language or os.getenv("TWIKIT_LANGUAGE", "en-US"),
     )
 
@@ -56,3 +63,10 @@ def _optional_env(name: str) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _bool_env(name: str, *, default: bool) -> bool:
+    value = _optional_env(name)
+    if value is None:
+        return default
+    return value.lower() not in {"0", "false", "no", "off"}

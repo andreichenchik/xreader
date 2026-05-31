@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
-from xreader.feed import _collect_summaries
+from xreader.config import TwikitConfig
+from xreader.feed import TwikitTweetFeed, _collect_summaries
 
 
 class FakeUser:
@@ -35,6 +40,101 @@ class FakePage:
 
     async def next(self) -> FakePage | None:
         return self._next_page
+
+
+class TwikitTweetFeedTests(unittest.IsolatedAsyncioTestCase):
+    def test_passes_impersonate_setting_to_client(self) -> None:
+        config = TwikitConfig(
+            username="andrei",
+            email=None,
+            password="secret",
+            totp_secret=None,
+            cookies_file=Path("cookies.json"),
+            impersonate="chrome124",
+            cookie_only=False,
+            enable_ui_metrics=False,
+        )
+
+        with patch("xreader.feed.Client") as client:
+            TwikitTweetFeed(config)
+
+        client.assert_called_once_with("en-US", impersonate="chrome124")
+
+    async def test_passes_ui_metrics_setting_to_login(self) -> None:
+        config = TwikitConfig(
+            username="andrei",
+            email=None,
+            password="secret",
+            totp_secret=None,
+            cookies_file=Path("cookies.json"),
+            impersonate=None,
+            cookie_only=False,
+            enable_ui_metrics=False,
+        )
+        with patch("xreader.feed.Client") as client_class:
+            client = client_class.return_value
+            client.login = AsyncMock()
+            feed = TwikitTweetFeed(config)
+
+            await feed._login()
+
+        client.login.assert_awaited_once_with(
+            auth_info_1="andrei",
+            auth_info_2=None,
+            password="secret",
+            totp_secret=None,
+            cookies_file="cookies.json",
+            enable_ui_metrics=False,
+        )
+
+    async def test_cookie_only_loads_cookie_file_without_login(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cookies_file = Path(directory) / "cookies.json"
+            cookies_file.write_text(json.dumps({"auth_token": "token", "ct0": "csrf"}), encoding="utf-8")
+            config = TwikitConfig(
+                username=None,
+                email=None,
+                password=None,
+                totp_secret=None,
+                cookies_file=cookies_file,
+                impersonate=None,
+                cookie_only=True,
+            )
+
+            with patch("xreader.feed.Client") as client_class:
+                client = client_class.return_value
+                client.login = AsyncMock()
+                feed = TwikitTweetFeed(config)
+
+                await feed._login()
+
+        client.set_cookies.assert_called_once_with({"auth_token": "token", "ct0": "csrf"})
+        client.login.assert_not_awaited()
+
+    async def test_cookie_only_accepts_browser_exported_cookie_list(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cookies_file = Path(directory) / "cookies.json"
+            cookies_file.write_text(
+                json.dumps([{"name": "auth_token", "value": "token"}, {"name": "ct0", "value": "csrf"}]),
+                encoding="utf-8",
+            )
+            config = TwikitConfig(
+                username=None,
+                email=None,
+                password=None,
+                totp_secret=None,
+                cookies_file=cookies_file,
+                impersonate=None,
+                cookie_only=True,
+            )
+
+            with patch("xreader.feed.Client") as client_class:
+                client = client_class.return_value
+                feed = TwikitTweetFeed(config)
+
+                await feed._login()
+
+        client.set_cookies.assert_called_once_with({"auth_token": "token", "ct0": "csrf"})
 
 
 class CollectSummariesTests(unittest.IsolatedAsyncioTestCase):

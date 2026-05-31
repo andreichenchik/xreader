@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -23,7 +24,7 @@ class TwikitTweetFeed:
 
     def __init__(self, config: TwikitConfig) -> None:
         self._config = config
-        self._client = Client(config.language)
+        self._client = Client(config.language, impersonate=config.impersonate)
 
     async def fetch(self, timeline: Timeline, count: int) -> list[TweetSummary]:
         """Login if needed, fetch timeline pages, and return tweet summaries."""
@@ -41,12 +42,20 @@ class TwikitTweetFeed:
         cookies_file = self._config.cookies_file
         _ensure_parent_directory(cookies_file)
 
+        if self._config.cookie_only:
+            _load_cookies_file(cookies_file, self._client)
+            return
+
+        if self._config.username is None or self._config.password is None:
+            raise ValueError("Username and password are required unless TWIKIT_COOKIE_ONLY is enabled.")
+
         await self._client.login(
             auth_info_1=self._config.username,
             auth_info_2=self._config.email,
             password=self._config.password,
             totp_secret=self._config.totp_secret,
             cookies_file=str(cookies_file),
+            enable_ui_metrics=self._config.enable_ui_metrics,
         )
 
     async def _fetch_page(self, timeline: Timeline, count: int) -> Any:
@@ -87,6 +96,30 @@ async def _collect_summaries(page: Any, count: int) -> list[TweetSummary]:
         current_page = await next_page()
 
     return summaries
+
+
+def _load_cookies_file(path: Path, client: Client) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"Cookie-only mode requires an existing cookies file: {path}")
+
+    with path.open(encoding="utf-8") as file:
+        raw_cookies = json.load(file)
+
+    if isinstance(raw_cookies, dict):
+        client.set_cookies(raw_cookies)
+        return
+
+    if isinstance(raw_cookies, list):
+        cookies = {
+            cookie["name"]: cookie["value"]
+            for cookie in raw_cookies
+            if isinstance(cookie, dict) and "name" in cookie and "value" in cookie
+        }
+        if cookies:
+            client.set_cookies(cookies)
+            return
+
+    raise ValueError("Cookies file must be a JSON object or a browser-exported list with name/value entries.")
 
 
 def _ensure_parent_directory(path: Path) -> None:

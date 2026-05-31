@@ -6,11 +6,14 @@ readme = "README.md"
 requires-python = "==3.14.5"
 dependencies = [
   "python-dotenv==1.2.2",
-  "twikit==2.3.3",
+  "twikit[impersonate]==2.3.3",
 ]
 
 [project.scripts]
 xreader = "xreader.cli:main"
+
+[tool.uv.sources]
+twikit = { git = "https://github.com/andreichenchik/twikit.git", rev = "853139691cdb90c04f941c47c1018d90610a5813" }
 
 [build-system]
 requires = ["hatchling==1.29.0"]
